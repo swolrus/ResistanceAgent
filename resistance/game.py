@@ -1,6 +1,6 @@
 from agent import Agent
-from random_agent import RandomAgent
-from s22690264.basic_agent import BasicAgent
+from s22690264.bots.random import RandomAgent
+from s22690264.bots.basic import BasicAgent
 import random
 
 
@@ -180,7 +180,7 @@ class Mission():
         Gives a string representation of the mission
         '''
         s = 'Leader:'+str(self.agents[self.leader_id])+'\nTeam: '
-        for i in range(len(self.team)):
+        for i in self.team:
             s += str(self.agents[i])+', '
         s = s[:-2]+'\nVotes for: '
         for i in self.votes_for:
@@ -197,7 +197,7 @@ class Mission():
         '''
         Creates formal (json) representation of the mission
         '''
-        return 'Mission(leader_id=' + self.agents[leader_id] \
+        return 'Mission(leader_id=' + self.agents[self.leader_id] \
             + ', team='+self.team \
             + ', agents='+self.agents \
                        + ', rnd='+self.rnd \

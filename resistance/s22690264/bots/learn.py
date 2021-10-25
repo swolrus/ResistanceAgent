@@ -3,8 +3,11 @@ import random
 import operator
 
 
-class BasicAgent(Agent):
-    '''The basic random agent extended to include some minimal logic rules'''
+class LearnAgent(Agent):
+    '''
+    The basic random agent extended to include some minimal logic rules
+    These rules center around a sus list containing suspicion values for each player
+    '''
 
     def __init__(self, name='Based'):
         '''
@@ -25,6 +28,7 @@ class BasicAgent(Agent):
         self.spy_list = spy_list
 
         self.sus = [0] * self.number_of_players
+        self.sus[self.player_number] = -1
 
     def is_spy(self):
         '''
@@ -37,17 +41,17 @@ class BasicAgent(Agent):
         expects a team_size list of distinct agents with id between 0 (inclusive) and number_of_players (exclusive)
         to be returned.
         betrayals_required are the number of betrayals required for the mission to fail.
-        always places self on 
+        always places self on
         '''
         team = []
         team.append(self)
 
         if not self.is_spy():
-            most_sus = [[i, self.sus[i]] for i in range(len(self.sus))]
-            most_sus = sorted(most_sus, key=operator.itemgetter(1))
+            sus_copy = [[i, self.sus[i]] for i in range(len(self.sus))]
+            sus_copy = sorted(sus_copy, key=operator.itemgetter(1))
             for i in range(team_size - 1):
-                if i < len(most_sus) and most_sus[i - 1][0] not in team:
-                    team.append(most_sus[i - 1][0])
+                if i < len(sus_copy) and sus_copy[i - 1][0] not in team:
+                    team.append(sus_copy[i - 1][0])
 
         while len(team) < team_size:
             agent = random.randrange(team_size)
@@ -64,20 +68,26 @@ class BasicAgent(Agent):
         The function should return True if the vote is for the mission, and False if the vote is against the mission.
         '''
         if self.is_spy():
+            # if is a spy
             for player in mission:
                 if player in self.spy_list:
+                    # approve missions with any spy in them
                     return True
+            # deny if no spies in mission
             return False
         elif sum(self.sus) > 0:
-            most_sus = [[i, self.sus[i]] for i in range(0, len(self.sus))]
-            most_sus = sorted(most_sus, key=operator.itemgetter(1))
-            if most_sus[len(most_sus) - 1] in mission or most_sus[len(most_sus) - 2]:
-                # will deny missions with either of the top two most sus players
-                return False
-            else:
-                # every other mission is approved
-                return True
+            # if is resistance, sort the suspicion
+            sus_copy = [[i, self.sus[i]] for i in range(0, len(self.sus))]
+            sus_copy = sorted(sus_copy, key=operator.itemgetter(1), reverse=True)
+            for i in range(len(self.spy_list)):
+                # deny if most sus up to number of spies is on mission
+                if sus_copy[i] in mission:
+                    # will deny missions with one of the top up to deny_range most sus players
+                    return False
+            # every other mission is approved
+            return True
         else:
+            # Denies missions if no data yet
             return False
 
     def vote_outcome(self, mission, proposer, votes):
@@ -116,7 +126,8 @@ class BasicAgent(Agent):
         '''
         if not mission_success:
             for i in range(len(mission)):
-                self.sus[i] = self.sus[i] + 1
+                if i != self.player_number:
+                    self.sus[i] = self.sus[i] + 1
         pass
 
     def round_outcome(self, rounds_complete, missions_failed):
