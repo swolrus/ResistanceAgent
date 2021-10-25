@@ -38,8 +38,9 @@ def test_NN():
                [1, 1, 1, 1]]
     n_inputs = len(dataset[0]) - 1
     n_outputs = len(set([row[-1] for row in dataset]))
-    network = NN(1, n_inputs, [2], n_outputs)
-    network.train_network(dataset, 0.2, 20, n_outputs)
+    network = NN(1, n_inputs, [3, 2], n_outputs)
+    network.train_network(dataset, 0.1, 200, n_outputs)
     print(network)
+    print(network.predict([0,1,1,None]))
 
 test_NN()

@@ -97,8 +97,8 @@ class NN:
 
     # Update network weights with error
     def update_weights(self, row, l_rate):
+        inputs = row[:-1]
         for i in range(len(self.nn)):
-            inputs = row[:-1]
             if i != 0:
                 inputs = [neuron['output'] for neuron in self.nn[i - 1]]
             for neuron in self.nn[i]:
@@ -124,7 +124,4 @@ class NN:
     # Use the network to make a prediction
     def predict(self, row):
         out = self.forward_propagate(row)
-        row[-1] = out.index(max(out))
-        sum_error += sum([(expected[i] - outputs[i]) **
-                                  2 for i in range(len(expected))])
-        return row
+        return out
