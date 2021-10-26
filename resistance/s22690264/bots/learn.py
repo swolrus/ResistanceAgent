@@ -1,7 +1,7 @@
 from agent import Agent
 import random
-import operator
-
+from s22690264.network.model import Model
+from s22690264.network.generator import Generator
 
 class LearnAgent(Agent):
     '''
@@ -9,12 +9,17 @@ class LearnAgent(Agent):
     These rules center around a sus list containing suspicion values for each player
     '''
 
-    def __init__(self, name='Based'):
+    def __init__(self, name='Learn'):
         '''
         Initialises the agent.
         Nothing to do here.
         '''
         self.name = name
+        self.network = Model(12412, (3, 5, 3, 1), ('ReLU', 'ReLU', 'sigmoid'))
+        self.gen = Generator(10)
+
+    def __str__(self):
+        return super().__str__()
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -27,8 +32,11 @@ class LearnAgent(Agent):
         self.player_number = player_number
         self.spy_list = spy_list
 
-        self.sus = [0] * self.number_of_players
-        self.sus[self.player_number] = -1
+        # players [went on failed miss, proposed failed miss]
+        self.stats = {}
+        for i in range(self.number_of_players):
+            self.stats[i] = [0, 0]
+        self.totals = [0, 0]
 
     def is_spy(self):
         '''
@@ -44,19 +52,18 @@ class LearnAgent(Agent):
         always places self on
         '''
         team = []
-        team.append(self)
+        team.append(self.player_number)
 
         if not self.is_spy():
-            sus_copy = [[i, self.sus[i]] for i in range(len(self.sus))]
-            sus_copy = sorted(sus_copy, key=operator.itemgetter(1))
-            for i in range(team_size - 1):
-                if i < len(sus_copy) and sus_copy[i - 1][0] not in team:
-                    team.append(sus_copy[i - 1][0])
-
-        while len(team) < team_size:
-            agent = random.randrange(team_size)
-            if agent not in team:
-                team.append(agent)
+            spies = self.guess_spies()
+            for i in range(team_size):
+                if i not in spies and i != self.player_number:
+                    team.append(i)
+        else:
+            while len(team) < team_size:
+                agent = random.randrange(team_size)
+                if agent not in team:
+                    team.append(agent)
 
         return team
 
@@ -75,13 +82,13 @@ class LearnAgent(Agent):
                     return True
             # deny if no spies in mission
             return False
-        elif sum(self.sus) > 0:
+
+        elif sum(stat[0] for i, stat in self.stats.items()) > 10:
+            spies = self.guess_spies()
             # if is resistance, sort the suspicion
-            sus_copy = [[i, self.sus[i]] for i in range(0, len(self.sus))]
-            sus_copy = sorted(sus_copy, key=operator.itemgetter(1), reverse=True)
-            for i in range(len(self.spy_list)):
+            for i in range(len(spies)):
                 # deny if most sus up to number of spies is on mission
-                if sus_copy[i] in mission:
+                if spies[i] in mission:
                     # will deny missions with one of the top up to deny_range most sus players
                     return False
             # every other mission is approved
@@ -89,6 +96,13 @@ class LearnAgent(Agent):
         else:
             # Denies missions if no data yet
             return False
+
+    def guess_spies(self):
+        spies = [0] * Agent.spy_count[self.number_of_players]
+        most_sus = sorted(self.stats.items(), key=lambda i: i[1][0], reverse=True)
+        for i in range(len(spies)):
+            spies[i] = most_sus[i]
+        return spies
 
     def vote_outcome(self, mission, proposer, votes):
         '''
@@ -99,6 +113,10 @@ class LearnAgent(Agent):
         No return value is required or expected.
         '''
         # nothing to do here
+        vote_ratio = sum(votes) / self.number_of_players
+        if (vote_ratio < 1/2):
+            self.stats[proposer][1] += 1
+            self.totals[1] += 1
         pass
 
     def betray(self, mission, proposer):
@@ -125,9 +143,11 @@ class LearnAgent(Agent):
         It iss not expected or required for this function to return anything.
         '''
         if not mission_success:
-            for i in range(len(mission)):
-                if i != self.player_number:
-                    self.sus[i] = self.sus[i] + 1
+            for agent in mission:
+                self.stats[agent][0] = self.stats[agent][0] + 1
+                self.totals[0] = self.totals[0] + 1
+
+        #print(str(self.totals) + '//' + str(self.stats))
         pass
 
     def round_outcome(self, rounds_complete, missions_failed):
@@ -146,4 +166,5 @@ class LearnAgent(Agent):
         spies, a list of the player indexes for the spies.
         '''
         # nothing to do here
+
         pass

@@ -17,6 +17,9 @@ class BasicAgent(Agent):
         self.deny_range = 2
         self.name = name
 
+    def __str__(self):
+        return super().__str__()
+
     def new_game(self, number_of_players, player_number, spy_list):
         '''
         initialises the game, informing the agent of the
@@ -45,7 +48,7 @@ class BasicAgent(Agent):
         always places self on
         '''
         team = []
-        team.append(self)
+        team.append(self.player_number)
 
         if not self.is_spy():
             sus_copy = [[i, self.sus[i]] for i in range(len(self.sus))]

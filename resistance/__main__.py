@@ -3,7 +3,8 @@ from s22690264.bots.random import RandomAgent
 from s22690264.bots.basic import BasicAgent
 from s22690264.bots.learn import LearnAgent
 from s22690264.statistics import Statistics
-from s22690264.network.nn import NN
+from s22690264.network.model import Model
+from s22690264.network.generator import Generator
 
 agents = [
     BasicAgent('b1'),
@@ -17,8 +18,9 @@ agents = [
 
 
 def run_sim():
-    stats = Statistics(agents)
-    for i in range(10000):
+    game = Game(agents)
+    stats = Statistics(game.agents)
+    for i in range(1000):
         game = Game(agents)
         game.play()
         # print(game)
@@ -29,18 +31,38 @@ def run_sim():
 def run_game():
     game = Game(agents)
     game.play()
-    print(game)
+
 
 def test_NN():
     dataset = [[0, 1, 0, 1],
                [1, 1, 0, 1],
                [1, 0, 1, 0],
                [1, 1, 1, 1]]
+
     n_inputs = len(dataset[0]) - 1
     n_outputs = len(set([row[-1] for row in dataset]))
-    network = NN(1, n_inputs, [3, 2], n_outputs)
-    network.train_network(dataset, 0.1, 200, n_outputs)
+    network = Model(1, (n_inputs, 3, 2, n_outputs), (None, None, 'RelU'))
+    network.train(dataset, 0.2, 50, n_outputs, True, True)
     print(network)
-    print(network.predict([0,1,1,None]))
+    print(network.predict([0, 1, 1]))
 
-test_NN()
+
+def test_NN2():
+    dataX = [[0, 1, 0],
+             [1, 1, 0],
+             [1, 0, 1],
+             [1, 1, 1]]
+    dataY = [[0, 1], [0, 1], [1, 0], [0, 1]]
+    gen = Generator(4)
+    for i in range(len(dataX)-1):
+        print(i)
+        gen.add(dataX[i], dataY[i])
+    n_inputs = 3
+    n_outputs = 2
+    network = Model(1, (n_inputs, 3, 2, n_outputs), (None, None, 'RelU'))
+    network.generator_train(gen, 0.2, 10, True, 0.9, True)
+    print(network)
+    print(network.predict([0, 1, 1]))
+
+
+test_NN2()
