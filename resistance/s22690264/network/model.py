@@ -14,8 +14,9 @@ class Model:
 
     nn contains the objects neural net dictionary
     '''
-    def __init__(self, ran_seed, layers, activation_functions):
+    def __init__(self, ran_seed, layers):
         self.first_run = False
+        self.l_rate = None
         self.debug = False
         seed(ran_seed)
         self.activation_f = 'ReLU'
@@ -29,8 +30,9 @@ class Model:
                 name = 'OUTPUT_LAYER'
             else:
                 name = 'HIDDEN_LAYER' + str(i)
-            layer = Layer(layers[i], layers[i + 1], name, activation_functions[i])
+            layer = Layer(layers[i], layers[i + 1], name)
             self.nn.append(layer)
+        self.nn[-1].activation_f = 'sigmoid'
 
     def __str__(self):
         s = ''
@@ -52,10 +54,10 @@ class Model:
             errors = list()
             if i != len(self.nn) - 1:
                 # if we are not at the output yet
-                for j in range(len(self.nn)):
+                for j in range(len(self.nn[i].neurons)):
                     error = 0.0
                     for neuron in self.nn[i + 1].neurons:
-                        error += (neuron['weights'][j] * neuron['delta'])
+                        error += (neuron['weights'][j] * neuron['error'])
                     errors.append(error)
             else:
                 for j in range(len(layer.neurons)):
@@ -63,7 +65,7 @@ class Model:
                     errors.append(neuron['output'] - expected[j])
             for j in range(len(layer.neurons)):
                 neuron = layer.neurons[j]
-                neuron['delta'] = errors[j] * layer.activation_dx(neuron['output'])
+                neuron['error'] = errors[j] * layer.activation_dx(neuron['output'])
 
     # Update network weights with error
     def update_weights(self, row, l_rate):
@@ -73,8 +75,8 @@ class Model:
                 inputs = [neuron['output'] for neuron in self.nn[i - 1].neurons]
             for neuron in self.nn[i].neurons:
                 for j in range(len(inputs)):
-                    neuron['weights'][j] -= l_rate * neuron['delta'] * inputs[j]
-                neuron['weights'][-1] -= l_rate * neuron['delta']
+                    neuron['weights'][j] -= l_rate * neuron['error'] * inputs[j]
+                neuron['weights'][-1] -= l_rate * neuron['error']
 
     # Train a network for a fixed number of epochs
     def train(self, rows, l_rate, n_epoch, n_outputs, anneal=False, anneal_rate=0.95, debug=False):
@@ -98,16 +100,15 @@ class Model:
                 print('epoch->%d, lrate is %.3f and error %.3f' % (epoch, l_rate, sum_error))
 
     def generator_train(self, generator, l_rate, n_epoch, anneal=False, anneal_rate=0.95, debug=False):
-        if not self.first_run:
+        if not self.l_rate:
             self.l_rate = l_rate
-            self.first_run = False
         for epoch in range(n_epoch):
             sum_error = 0
             rows = next(generator)
+            # print(rows)
             for row in rows:
                 x_train = row[0]
                 y_train = row[1]
-                print(str(x_train) + '->' + str(y_train))
                 outputs = self.forward_propagate(x_train)
                 sum_error += sum([(y_train[i] - outputs[i]) **
                                   2 for i in range(len(y_train))])
@@ -116,7 +117,7 @@ class Model:
             if anneal:
                 self.l_rate = self.l_rate * anneal_rate
             if debug is True:
-                print('epoch->%d, lrate is %.3f and error %.3f' % (epoch, l_rate, sum_error))
+                print('epoch->%d, lrate is %.3f and error %.3f' % (epoch, self.l_rate, sum_error))
 
     # Use the network to make a prediction
     def predict(self, row):

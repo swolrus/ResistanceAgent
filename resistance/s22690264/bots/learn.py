@@ -3,6 +3,7 @@ import random
 from s22690264.network.model import Model
 from s22690264.network.generator import Generator
 
+
 class LearnAgent(Agent):
     '''
     The basic random agent extended to include some minimal logic rules
@@ -14,12 +15,10 @@ class LearnAgent(Agent):
         Initialises the agent.
         Nothing to do here.
         '''
+        self.train_batch = 0
         self.name = name
-        self.network = Model(12412, (3, 5, 3, 1), ('ReLU', 'ReLU', 'sigmoid'))
-        self.gen = Generator(10)
-
-    def __str__(self):
-        return super().__str__()
+        self.network = Model(12412, (4, 6, 2))
+        self.gen = Generator(20)
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -37,6 +36,11 @@ class LearnAgent(Agent):
         for i in range(self.number_of_players):
             self.stats[i] = [0, 0]
         self.totals = [0, 0]
+
+        if self.can_train():
+            self.train()
+            self.gen.clear()
+            self.train_batch += 1
 
     def is_spy(self):
         '''
@@ -99,9 +103,22 @@ class LearnAgent(Agent):
 
     def guess_spies(self):
         spies = [0] * Agent.spy_count[self.number_of_players]
-        most_sus = sorted(self.stats.items(), key=lambda i: i[1][0], reverse=True)
-        for i in range(len(spies)):
-            spies[i] = most_sus[i]
+        if self.train_batch > 0:
+            for key, value in self.stats.items():
+                inputs = [0] * 4
+                if self.totals[0] != 0:
+                    inputs[0] = value[0]
+                    inputs[1] = self.totals[0]
+                if self.totals[1] != 0:
+                    inputs[2] = value[1]
+                    inputs[3] = self.totals[1]
+                outputs = self.network.predict(inputs)
+                spies[key] = outputs.index(max(outputs))
+        else:
+            most_sus = sorted(self.stats.items(),
+                          key=lambda i: i[1][0], reverse=True)
+            for i in range(len(spies)):
+                spies[i] = most_sus[i]
         return spies
 
     def vote_outcome(self, mission, proposer, votes):
@@ -114,7 +131,7 @@ class LearnAgent(Agent):
         '''
         # nothing to do here
         vote_ratio = sum(votes) / self.number_of_players
-        if (vote_ratio < 1/2):
+        if (vote_ratio < 1 / 2):
             self.stats[proposer][1] += 1
             self.totals[1] += 1
         pass
@@ -127,6 +144,8 @@ class LearnAgent(Agent):
         The method should return True if this agent chooses to betray the mission, and False otherwise.
         By default, spies will betray 30% of the time.
         '''
+
+
         spy_count = 0
         for agent in mission:
             if agent in self.spy_list:
@@ -157,6 +176,7 @@ class LearnAgent(Agent):
         missions_failed, the numbe of missions (0-3) that have failed.
         '''
         # nothing to do here
+
         pass
 
     def game_outcome(self, spies_win, spies):
@@ -167,4 +187,41 @@ class LearnAgent(Agent):
         '''
         # nothing to do here
 
+        # print(str(self.stats) + '// ' + str(self.totals))
+        # goal = [0] * self.number_of_players
+        # inputs = [0] * (self.number_of_players * 2)
+        # for key, value in self.stats.items():
+        #     if self.totals[0] != 0:
+        #         inputs[key * 2] = value[0] / self.totals[0]
+        #     if self.totals[1] != 0:
+        #         inputs[key * 2 + 1] = value[1] / self.totals[1]
+        #     if key in spies:
+        #         goal[key] = 1
+        # self.gen.add(inputs, goal)
+        for key, value in self.stats.items():
+            if key in spies:
+                goal = [0, 1]
+            else:
+                goal = [1, 0]
+            inputs = [0] * 4
+            if self.totals[0] != 0:
+                inputs[0] = value[0]
+                inputs[1] = self.totals[0]
+            if self.totals[1] != 0:
+                inputs[2] = value[1]
+                inputs[3] = self.totals[1]
+        self.gen.add(inputs, goal)
+
         pass
+
+    def train_if(self):
+
+
+    def can_train(self):
+        if self.gen.get_data_length() > 10 * self.number_of_players:
+            return True
+        else:
+            return False
+
+    def train(self):
+        self.network.generator_train(self.gen, 0.3, 200, anneal=True, anneal_rate=0.99, debug=True)

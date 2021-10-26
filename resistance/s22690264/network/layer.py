@@ -8,15 +8,13 @@ class Layer:
         self.n_in = n_in
         self.n_out = n_out
         self.activation_f = activation
-        self.ins = None
-        self.outs = None
 
         # final value of weights is bias
         self.neurons = [{'weights': [random() for i in range(self.n_in + 1)]}
                         for i in range(self.n_out)]
 
     def __str__(self):
-        s = self.name + ' (' + self.activation_f + ')\n'
+        s = self.name + ' (' + str(self.activation_f)+ ')\n'
         for i in range(len(self.neurons)):
             s += '    Neuron' + str(i) + ' // ' + str(self.neurons[i]) + '\n'
         return s

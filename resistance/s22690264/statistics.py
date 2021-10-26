@@ -12,7 +12,6 @@ class Statistics():
 
     def __str__(self) -> str:
         for agent, data in self.stats.items():
-            agent = str(agent)
             self.stats[agent]['spy_winrate'] = data['spy_wins'] / data['spy']
             self.stats[agent]['resistance_winrate'] = data['res_wins'] / data['res']
             self.stats[agent]['combined_winrate'] = (data['spy_wins'] + data['res_wins']) / (data['spy'] + data['res'])
@@ -46,7 +45,7 @@ class Statistics():
         sort = sorted(stats.items(), key=lambda tup: tup[1][sortby], reverse=True)
         i = 1
         for key, value in sort:
-            s += str(i) + '. Agent ' + str(key) + ' // ' + '{0:.0f}%'.format(value[sortby] * 100) + '\n'
+            s += str(i) + '. ' + str(key) + ' // ' + '{0:.0f}%'.format(value[sortby] * 100) + '\n'
             i += 1
 
         return s

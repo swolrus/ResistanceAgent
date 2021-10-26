@@ -17,9 +17,6 @@ class BasicAgent(Agent):
         self.deny_range = 2
         self.name = name
 
-    def __str__(self):
-        return super().__str__()
-
     def new_game(self, number_of_players, player_number, spy_list):
         '''
         initialises the game, informing the agent of the

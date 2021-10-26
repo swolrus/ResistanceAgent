@@ -20,11 +20,12 @@ agents = [
 def run_sim():
     game = Game(agents)
     stats = Statistics(game.agents)
-    for i in range(1000):
+    for i in range(10):
         game = Game(agents)
         game.play()
         # print(game)
         stats.add_game(game)
+    agents[3].train()
     print(stats)
 
 
@@ -41,7 +42,7 @@ def test_NN():
 
     n_inputs = len(dataset[0]) - 1
     n_outputs = len(set([row[-1] for row in dataset]))
-    network = Model(1, (n_inputs, 3, 2, n_outputs), (None, None, 'RelU'))
+    network = Model(1, (n_inputs, 3, 2, n_outputs))
     network.train(dataset, 0.2, 50, n_outputs, True, True)
     print(network)
     print(network.predict([0, 1, 1]))
@@ -54,15 +55,15 @@ def test_NN2():
              [1, 1, 1]]
     dataY = [[0, 1], [0, 1], [1, 0], [0, 1]]
     gen = Generator(4)
-    for i in range(len(dataX)-1):
+    for i in range(len(dataX) - 1):
         print(i)
         gen.add(dataX[i], dataY[i])
     n_inputs = 3
     n_outputs = 2
-    network = Model(1, (n_inputs, 3, 2, n_outputs), (None, None, 'RelU'))
-    network.generator_train(gen, 0.2, 10, True, 0.9, True)
+    network = Model(1, (n_inputs, 3, 2, n_outputs))
+    network.generator_train(gen, 0.5, 20, True, 0.99, True)
     print(network)
     print(network.predict([0, 1, 1]))
 
 
-test_NN2()
+run_sim()
