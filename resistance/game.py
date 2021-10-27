@@ -44,6 +44,7 @@ class Game:
         self.rounds = []
 
     def play(self):
+        random.seed(random.random() * 50)
         leader_id = 0
         for i in range(5):
             self.rounds.append(Round(leader_id, self.agents, self.spies, i))

@@ -2,28 +2,24 @@ from game import Game
 from s22690264.bots.random import RandomAgent
 from s22690264.bots.basic import BasicAgent
 from s22690264.bots.learn import LearnAgent
-from s22690264.statistics import Statistics
+from s22690264.statistics import Sim
 from s22690264.network.model import Model
 from s22690264.network.generator import Generator
 
 agents = [
-    RandomAgent('r1'),
-    RandomAgent('r2'),
     LearnAgent('L1'),
-    BasicAgent('b4'),
-    BasicAgent('b5'),
-    BasicAgent('b6')
+    LearnAgent('L2'),
+    BasicAgent('b2'),
+    BasicAgent('b1'),
+    RandomAgent('R1'),
+    RandomAgent('R2')
 ]
 
 
 def run_sim():
-    game = Game(agents)
-    stats = Statistics(game.agents)
-    for i in range(5):
-        game = Game(agents)
-        game.play()
-        stats.add_game(game)
-    print(stats)
+    sim = Sim(agents)
+    sim.run(100)
+    print(sim)
 
 
 def run_game():
@@ -57,10 +53,10 @@ def test_NN2():
         gen.add(dataX[i], dataY[i])
     n_inputs = 3
     n_outputs = 2
-    network = Model(1, (n_inputs, 3, 2, n_outputs), (None, None, 'RelU'))
+    network = Model(1, (n_inputs, 3, 2, n_outputs))
     network.generator_train(gen, 0.2, 10, True, 0.9, True)
     print(network)
     print(network.predict([0, 1, 1]))
 
 
-test_NN2()
+run_sim()

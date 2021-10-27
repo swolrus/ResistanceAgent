@@ -14,7 +14,7 @@ class BasicAgent(Agent):
         Initialises the agent.
         Nothing to do here.
         '''
-        self.deny_range = 2
+        self.deny_range = 1
         self.name = name
 
     def __str__(self):

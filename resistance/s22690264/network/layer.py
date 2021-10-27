@@ -1,4 +1,4 @@
-from random import random
+from random import random, seed
 from math import exp
 
 
@@ -63,7 +63,7 @@ class Layer:
         return a
 
     # Calculate neuron activation for an input
-    def propagate(self, inputs):
+    def __call__(self, inputs):
         outputs = []
         for neuron in self.neurons:
             activation = self.activation(neuron['weights'], inputs)

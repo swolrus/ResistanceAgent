@@ -16,9 +16,10 @@ class LearnAgent(Agent):
         Initialises the agent.
         Nothing to do here.
         '''
+        self.train_batch = 0
         self.name = name
-        self.network = Model(1, (4, 8, 2))
-        self.gen = Generator(10)
+        self.network = Model(5, (2, 4, 4, 2))
+        self.gen = Generator(20)
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -35,7 +36,6 @@ class LearnAgent(Agent):
         self.stats = {}
         for i in range(self.number_of_players):
             self.stats[i] = [0, 0]
-        self.totals = [0, 0]
 
     def is_spy(self):
         '''
@@ -53,10 +53,13 @@ class LearnAgent(Agent):
         team = []
         team.append(self.player_number)
 
-        if not self.is_spy():
+        if not self.is_spy() and self.train_batch > 0:
             spies = self.guess_spies()
+            most_likely = spies.index(max(spies))
+            spies[most_likely] = [0]
+            most_likely_two = spies.index(max(spies))
             for i in range(team_size):
-                if i not in spies and i != self.player_number:
+                if i != most_likely and i != self.player_number and i != most_likely_two:
                     team.append(i)
         else:
             while len(team) < team_size:
@@ -81,35 +84,23 @@ class LearnAgent(Agent):
                     return True
             # deny if no spies in mission
             return False
-
         elif self.train_batch > 0:
             spies = self.guess_spies()
-            # if is resistance, sort the suspicion
-            for i in range(len(spies)):
-                # deny if most sus up to number of spies is on mission
-                if spies[i] in mission:
-                    # will deny missions with one of the top up to deny_range most sus players
+            spies = [value[1] - value[0] for value in spies]
+            most_likely = spies.index(max(spies))
+            for agent in mission:
+                if agent != most_likely and agent != self.player_number:
                     return False
-            # every other mission is approved
-            return True
-        else:
-            # Denies missions if no data yet
-            return False
+        return True
 
     def guess_spies(self):
-        spies = [[0, 0] for i in range(self.number_of_players)]
+        spies = []
         for key, value in self.stats.items():
-            spies[key][0] = key
-            inputs = [0] * 4
-            if self.totals[0] != 0:
-                inputs[0] = value[0]
-                inputs[1] = self.totals[0]
-            if self.totals[1] != 0:
-                inputs[2] = value[1]
-                inputs[3] = self.totals[1]
-            print(inputs)
-            spies[key][1] = self.network.predict(inputs)
-        print(spies)
+            inputs = [value[0], value[1]]
+            output = self.network.predict(inputs)
+            # print(str(inputs) + '->' + str(outputs))
+            spies.append(output)
+
         return spies
 
     def vote_outcome(self, mission, proposer, votes):
@@ -124,7 +115,6 @@ class LearnAgent(Agent):
         vote_ratio = sum(votes) / self.number_of_players
         if (vote_ratio < 1/2):
             self.stats[proposer][1] += 1
-            self.totals[1] += 1
         pass
 
     def betray(self, mission, proposer):
@@ -141,8 +131,6 @@ class LearnAgent(Agent):
                 spy_count += 1
         return random.random() < (1 / spy_count)
 
-        return True
-
     def mission_outcome(self, mission, proposer, betrayals, mission_success):
         '''
         mission is a list of agents to be sent on a mission.
@@ -155,9 +143,8 @@ class LearnAgent(Agent):
         if not mission_success:
             for agent in mission:
                 self.stats[agent][0] = self.stats[agent][0] + 1
-                self.totals[0] = self.totals[0] + 1
 
-        #print(str(self.totals) + '//' + str(self.stats))
+        # print(str(self.totals) + '//' + str(self.stats))
         pass
 
     def round_outcome(self, rounds_complete, missions_failed):
@@ -192,14 +179,10 @@ class LearnAgent(Agent):
                 goal = [0, 1]
             else:
                 goal = [1, 0]
-            inputs = [0] * 4
-            if self.totals[0] != 0:
-                inputs[0] = value[0]
-                inputs[1] = self.totals[0]
-            if self.totals[1] != 0:
-                inputs[2] = value[1]
-                inputs[3] = self.totals[1]
-            self.gen.add(inputs, goal)
+            inputs = [value[0], value[1]]
+            if sum(inputs) > 0:
+                # print(str(inputs) + "->" + str(goal))
+                self.gen.add(inputs, goal)
 
         if self.can_train():
             self.train()
@@ -207,10 +190,11 @@ class LearnAgent(Agent):
             self.train_batch += 1
 
     def can_train(self):
-        if self.gen.get_data_length() > 100 * self.number_of_players:
+        if self.gen.get_data_length() > 20 * self.number_of_players and self.train_batch < 10:
+            # print('learning time!')
             return True
         else:
             return False
 
     def train(self):
-        self.network.generator_train(self.gen, 0.2, 20, anneal=True, anneal_rate=0.99, debug=False)
+        self.network.generator_train(self.gen, 0.4, 100, anneal=True, anneal_rate=0.9, debug=False)
