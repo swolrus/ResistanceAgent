@@ -7,23 +7,21 @@ from s22690264.network.model import Model
 from s22690264.network.generator import Generator
 
 agents = [
-    BasicAgent('b1'),
-    BasicAgent('b2'),
-    BasicAgent('b3'),
-    LearnAgent('l4'),
-    RandomAgent('r5'),
-    RandomAgent('r6'),
-    RandomAgent('r7'),
+    RandomAgent('r1'),
+    RandomAgent('r2'),
+    LearnAgent('L1'),
+    BasicAgent('b4'),
+    BasicAgent('b5'),
+    BasicAgent('b6')
 ]
 
 
 def run_sim():
     game = Game(agents)
     stats = Statistics(game.agents)
-    for i in range(1000):
+    for i in range(5):
         game = Game(agents)
         game.play()
-        # print(game)
         stats.add_game(game)
     print(stats)
 

@@ -1,4 +1,3 @@
-import numpy as np
 from collections import namedtuple
 from itertools import permutations
 from agent import Agent

@@ -1,7 +1,9 @@
 from agent import Agent
 import random
+import operator
 from s22690264.network.model import Model
 from s22690264.network.generator import Generator
+
 
 class LearnAgent(Agent):
     '''
@@ -15,11 +17,8 @@ class LearnAgent(Agent):
         Nothing to do here.
         '''
         self.name = name
-        self.network = Model(12412, (3, 5, 3, 1), ('ReLU', 'ReLU', 'sigmoid'))
+        self.network = Model(1, (4, 8, 2))
         self.gen = Generator(10)
-
-    def __str__(self):
-        return super().__str__()
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -83,7 +82,7 @@ class LearnAgent(Agent):
             # deny if no spies in mission
             return False
 
-        elif sum(stat[0] for i, stat in self.stats.items()) > 10:
+        elif self.train_batch > 0:
             spies = self.guess_spies()
             # if is resistance, sort the suspicion
             for i in range(len(spies)):
@@ -98,10 +97,19 @@ class LearnAgent(Agent):
             return False
 
     def guess_spies(self):
-        spies = [0] * Agent.spy_count[self.number_of_players]
-        most_sus = sorted(self.stats.items(), key=lambda i: i[1][0], reverse=True)
-        for i in range(len(spies)):
-            spies[i] = most_sus[i]
+        spies = [[0, 0] for i in range(self.number_of_players)]
+        for key, value in self.stats.items():
+            spies[key][0] = key
+            inputs = [0] * 4
+            if self.totals[0] != 0:
+                inputs[0] = value[0]
+                inputs[1] = self.totals[0]
+            if self.totals[1] != 0:
+                inputs[2] = value[1]
+                inputs[3] = self.totals[1]
+            print(inputs)
+            spies[key][1] = self.network.predict(inputs)
+        print(spies)
         return spies
 
     def vote_outcome(self, mission, proposer, votes):
@@ -132,6 +140,8 @@ class LearnAgent(Agent):
             if agent in self.spy_list:
                 spy_count += 1
         return random.random() < (1 / spy_count)
+
+        return True
 
     def mission_outcome(self, mission, proposer, betrayals, mission_success):
         '''
@@ -166,5 +176,41 @@ class LearnAgent(Agent):
         spies, a list of the player indexes for the spies.
         '''
         # nothing to do here
+        # print(str(self.stats) + '// ' + str(self.totals))
+        # goal = [0] * self.number_of_players
+        # inputs = [0] * (self.number_of_players * 2)
+        # for key, value in self.stats.items():
+        #     if self.totals[0] != 0:
+        #         inputs[key * 2] = value[0] / self.totals[0]
+        #     if self.totals[1] != 0:
+        #         inputs[key * 2 + 1] = value[1] / self.totals[1]
+        #     if key in spies:
+        #         goal[key] = 1
+        # self.gen.add(inputs, goal)
+        for key, value in self.stats.items():
+            if key in spies:
+                goal = [0, 1]
+            else:
+                goal = [1, 0]
+            inputs = [0] * 4
+            if self.totals[0] != 0:
+                inputs[0] = value[0]
+                inputs[1] = self.totals[0]
+            if self.totals[1] != 0:
+                inputs[2] = value[1]
+                inputs[3] = self.totals[1]
+            self.gen.add(inputs, goal)
 
-        pass
+        if self.can_train():
+            self.train()
+            self.gen.clear()
+            self.train_batch += 1
+
+    def can_train(self):
+        if self.gen.get_data_length() > 100 * self.number_of_players:
+            return True
+        else:
+            return False
+
+    def train(self):
+        self.network.generator_train(self.gen, 0.2, 20, anneal=True, anneal_rate=0.99, debug=False)

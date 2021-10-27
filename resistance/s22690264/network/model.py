@@ -120,4 +120,4 @@ class Model:
 
     # Use the network to make a prediction
     def predict(self, row):
-        return str(self.forward_propagate(row))
+        return self.forward_propagate(row)

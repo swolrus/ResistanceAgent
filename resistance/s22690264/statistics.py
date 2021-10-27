@@ -8,7 +8,7 @@ class Statistics():
         self.size = len(agents)
         self.stats = {}
         for i in range(self.size):
-            self.stats[str(agents[i])] = {'spy_wins': 0, 'spy': 0, 'res_wins': 0, 'res': 0}
+            self.stats[str(agents[i].name)] = {'spy_wins': 0, 'spy': 0, 'res_wins': 0, 'res': 0}
 
     def __str__(self) -> str:
         for agent, data in self.stats.items():
@@ -23,22 +23,21 @@ class Statistics():
         s += self.dict_to_ladder(self.stats, 'combined_winrate')
         return s
 
-    def add_game(self, game: Game) -> None:
+    def add_game(self, game):
         for i in range(self.size):
-            agent_id = game.agents[i].player_number
-            agent = str(game.agents[i])
-            if agent_id in game.spies:
+            agent = game.agents[i]
+            if agent.player_number in game.spies:
                 # Agent is spy -> update spy total
-                self.stats[agent]['spy'] += 1
+                self.stats[agent.name]['spy'] += 1
                 if game.missions_lost > 3:
                     # Spies WON, add to spy wincount
-                    self.stats[agent]['spy_wins'] += 1
+                    self.stats[agent.name]['spy_wins'] += 1
             else:
                 # Agent is resistance -> update res total
-                self.stats[agent]['res'] += 1
+                self.stats[agent.name]['res'] += 1
                 if game.missions_lost < 3:
                     # Resistance WON, add to res wincount
-                    self.stats[agent]['res_wins'] += 1
+                    self.stats[agent.name]['res_wins'] += 1
 
     def dict_to_ladder(self, stats, sortby):
         s = '\nAgent ' + sortby + ' leaderboard\n'
