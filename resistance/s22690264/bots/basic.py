@@ -17,8 +17,8 @@ class BasicAgent(Agent):
         self.deny_range = 1
         self.name = name
 
-    def __str__(self):
-        return super().__str__()
+    def reset(self):
+        pass
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -45,7 +45,7 @@ class BasicAgent(Agent):
         expects a team_size list of distinct agents with id between 0 (inclusive) and number_of_players (exclusive)
         to be returned.
         betrayals_required are the number of betrayals required for the mission to fail.
-        always places self on
+        always places self on team and fills team with any but the two most sus players
         '''
         team = []
         team.append(self.player_number)
@@ -88,11 +88,8 @@ class BasicAgent(Agent):
                 if sus_copy[i] in mission:
                     # will deny missions with one of the top up to deny_range most sus players
                     return False
-            # every other mission is approved
-            return True
-        else:
-            # Denies missions if no data yet
-            return False
+        # every other mission is approved
+        return True
 
     def vote_outcome(self, mission, proposer, votes):
         '''
@@ -132,7 +129,6 @@ class BasicAgent(Agent):
             for i in range(len(mission)):
                 if i != self.player_number:
                     self.sus[i] = self.sus[i] + 1
-        pass
 
     def round_outcome(self, rounds_complete, missions_failed):
         '''

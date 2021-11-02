@@ -12,6 +12,9 @@ class RandomAgent(Agent):
         '''
         self.name = name
 
+    def reset(self):
+        pass
+
     def __str__(self):
         return super().__str__()
 

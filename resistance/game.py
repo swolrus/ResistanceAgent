@@ -51,7 +51,7 @@ class Game:
             if not self.rounds[i].play():
                 self.missions_lost += 1
             for a in self.agents:
-                a.round_outcome(i+1, self.missions_lost)
+                a.round_outcome(i + 1, self.missions_lost)
             leader_id = (
                 leader_id+len(self.rounds[i].missions)) % len(self.agents)
         for a in self.agents:
