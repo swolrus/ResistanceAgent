@@ -31,12 +31,12 @@ def run_game():
 
 
 def test():
-    # test = Test(agents)
-    # test.simulate(100, 100, 5)
-    # test.save('test1', 'accuracy')
+    test = Test(agents)
+    test.simulate(100, 100, 5)
+    test.save('test2', 'accuracy')
 
     test2 = Test()
-    test2.load('test1', 'accuracy')
+    test2.load('test2', 'accuracy')
     test2.plot()
 
 
@@ -50,7 +50,7 @@ def test2():
     nn.gen.add([0, 0, 0, 1, 1], [0, 1])
     nn.gen.add([0, 1, 1, 1, 0], [1, 0])
     nn.gen.add([1, 1, 0, 0, 1], [1, 0])
-    nn.generator_train(1, 1)
+    nn.generator_train(1q, 1)
     results = []
     results.append(nn([1, 0, 1, 0, 0]))
     print(nn)
@@ -61,4 +61,4 @@ def test2():
     print(results)
 
 
-test2()
+test()

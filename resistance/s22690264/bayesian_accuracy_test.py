@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import matplotlib.lines as mlines
 from random import seed
 from game import Game, Round, Mission
 from datetime import datetime
@@ -86,11 +85,25 @@ class Test:
 
                 for i in range(5):
                     game.rounds.append(Round(leader_id, game.agents, game.spies, i))
-                    if not self.play_round(game.rounds[i], game, test):
-                        game.missions_lost += 1
+                    if not self.rounds[i].play():
+                        self.missions_lost += 1
                     leader_id = (leader_id + len(game.rounds[i].missions)) % n_agents
                     for a in game.agents:
                         a.round_outcome(i + 1, game.missions_lost)
+                        if a.player_number not in game.spies and isinstance(a, BayesianAgent):
+                            true_state = tuple(1 if i in game.spies else 0 for i in range(self.n_agents))
+                            rank = a.get_correct_rank(true_state)
+                            if test is False:
+                                for j in range(3):
+                                    if j == rank:
+                                        self.accuracy[i][j][0] += 1
+                                    self.accuracy[i][j][1] += 1
+                            else:
+                                s = 'Round{' + str(a.n_round) + '}'
+                                s += ' Try{' + str(a.n_try) + '}\n'
+                                s += 'was matched at ' + str(rank) + '\n'
+                                print(s)
+
                     if game.missions_lost > 2:
                         break
                 for a in game.agents:
@@ -103,21 +116,6 @@ class Test:
             team = rnd.agents[rnd.leader_id].propose_mission(mission_size, fails_required)
             mission = Mission(rnd.leader_id, team, rnd.agents,
                           rnd.spies, rnd.rnd, len(rnd.missions) == 4)
-            for a in rnd.agents:
-                if a.player_number not in game.spies and isinstance(a, BayesianAgent):
-                    true_state = tuple(1 if i in game.spies else 0 for i in range(self.n_agents))
-                    rank = a.get_correct_rank(true_state)
-                    if test is False:
-                        for i in range(3):
-                            if i == rank:
-                                self.accuracy[rnd.rnd][i][0] += 1
-                            self.accuracy[rnd.rnd][i][1] += 1
-                    else:
-                        s = 'Round{' + str(a.n_round) + '}'
-                        s += ' Try{' + str(a.n_try) + '}\n'
-                        s += 'was matched at ' + str(rank) + '\n'
-                        print(s)
-
             rnd.missions.append(mission)
             rnd.leader_id = (rnd.leader_id + 1) % len(rnd.agents)
             if mission.is_approved():
