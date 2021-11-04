@@ -1,6 +1,7 @@
 from agent import Agent
 import random
 import operator
+from s22690264.bots.goodspy import GoodSpy
 
 
 class BasicAgent(Agent):
@@ -17,9 +18,6 @@ class BasicAgent(Agent):
         self.deny_range = 1
         self.name = name
 
-    def reset(self):
-        pass
-
     def new_game(self, number_of_players, player_number, spy_list):
         '''
         initialises the game, informing the agent of the
@@ -27,12 +25,16 @@ class BasicAgent(Agent):
         and a list of agent indexes which are the spies, if the agent is a spy, or empty otherwise
         sus is an array of all players, is used to track suspicion when playing as resistance
         '''
-        self.number_of_players = number_of_players
+        self.n_players = number_of_players
         self.player_number = player_number
         self.spy_list = spy_list
 
-        self.sus = [0] * self.number_of_players
-        self.sus[player_number] = -1
+        if self.is_spy():
+            self.spy_agent = GoodSpy(0.1)
+            self.spy_agent.new_game(self.spy_list, self.player_number, self.n_players)
+        else:
+            self.sus = [0] * self.n_players
+            self.sus[player_number] = -1
 
     def is_spy(self):
         '''
@@ -48,19 +50,16 @@ class BasicAgent(Agent):
         always places self on team and fills team with any but the two most sus players
         '''
         team = []
-        team.append(self.player_number)
 
         if not self.is_spy():
+            team.append(self.player_number)
             sus_copy = [[i, self.sus[i]] for i in range(len(self.sus))]
             sus_copy = sorted(sus_copy, key=operator.itemgetter(1))
-            for i in range(team_size - 1):
+            for i in range(team_size):
                 if i < len(sus_copy) and sus_copy[i - 1][0] not in team:
                     team.append(sus_copy[i - 1][0])
-
-        while len(team) < team_size:
-            agent = random.randrange(team_size)
-            if agent not in team:
-                team.append(agent)
+        else:
+            team = self.spy_agent.propose(team_size)
 
         return team
 
@@ -71,14 +70,10 @@ class BasicAgent(Agent):
         proposer is an int between 0 and number_of_players and is the index of the player who proposed the mission.
         The function should return True if the vote is for the mission, and False if the vote is against the mission.
         '''
+        if self.player_number is proposer:
+            return True
         if self.is_spy():
-            # if is a spy
-            for player in mission:
-                if player in self.spy_list:
-                    # approve missions with any spy in them
-                    return True
-            # deny if no spies in mission
-            return False
+            return self.spy_agent.vote(mission, proposer)
         elif sum(self.sus) > 0:
             # if is resistance, sort the suspicion
             sus_copy = [[i, self.sus[i]] for i in range(0, len(self.sus))]
@@ -110,11 +105,8 @@ class BasicAgent(Agent):
         The method should return True if this agent chooses to betray the mission, and False otherwise.
         By default, spies will betray 30% of the time.
         '''
-        spy_count = 0
-        for agent in mission:
-            if agent in self.spy_list:
-                spy_count += 1
-        return random.random() < (1 / spy_count)
+        if self.is_spy():
+            return self.spy_agent.betray(mission, proposer)
 
     def mission_outcome(self, mission, proposer, betrayals, mission_success):
         '''
@@ -125,10 +117,11 @@ class BasicAgent(Agent):
         and mission_success is True if there were not enough betrayals to cause the mission to fail, False otherwise.
         It iss not expected or required for this function to return anything.
         '''
-        if not mission_success:
-            for i in range(len(mission)):
-                if i != self.player_number:
-                    self.sus[i] = self.sus[i] + 1
+        if not self.is_spy():
+            if not mission_success:
+                for i in range(len(mission)):
+                    if i != self.player_number:
+                        self.sus[i] = self.sus[i] + 1
 
     def round_outcome(self, rounds_complete, missions_failed):
         '''

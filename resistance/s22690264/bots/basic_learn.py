@@ -1,10 +1,9 @@
 from agent import Agent
-from random import random, randrange
 from s22690264.network.model import Model
-from s22690264.network.generator import Generator
+from s22690264.bots.goodspy import GoodSpy
 
 
-class BasicLearnAgent(Agent):
+class LearnAgent(Agent):
     '''
     The basic random agent extended to include some minimal logic rules
     These rules center around a sus list containing suspicion values for each player
@@ -16,12 +15,12 @@ class BasicLearnAgent(Agent):
         Nothing to do here.
         '''
         self.name = name
-        self.reset()
+        self.newb = True
+        self.trained = False
+        self.game_count = 1
 
     def reset(self):
-        self.network = Model(5, (2, 4, 4, 2))
-        self.network.first_run = True
-        self.train_batch = 0
+        pass
 
     def new_game(self, number_of_players, player_number, spy_list):
         '''
@@ -30,18 +29,22 @@ class BasicLearnAgent(Agent):
         and a list of agent indexes which are the spies, if the agent is a spy, or empty otherwise
         sus is an array of all players, is used to track suspicion when playing as resistance
         '''
+
         self.n_players = number_of_players
         self.player_number = player_number
         self.spy_list = spy_list
-        self.stats = {i: [0, 0] for i in range(self.n_players)}
+        self.stats = [0] * self.n_players
+        self.n_round = 1
+        self.n_try = 1
+
+        if self.newb is True:
+            self.network = Model([self.n_players, self.n_players, self.n_players, self.n_players], 'ReLU')
+            self.newb = False
+            self.train_batch = 0
 
         if self.is_spy():
-            self.spy_agent = GoodSpy(0.5)
-            self.spy_agent.new_game(self.n_players, player_number, spy_list)
-        else:
-            # players [went on failed miss, proposed failed miss]
-            for i in range(self.n_players):
-                self.stats[i] = [0, 0]
+            self.spy_agent = GoodSpy(0.1)
+            self.spy_agent.new_game(self.spy_list, self.player_number, self.n_players)
 
     def is_spy(self):
         '''
@@ -60,15 +63,24 @@ class BasicLearnAgent(Agent):
         team.append(self.player_number)
 
         if not self.is_spy():
-            if self.train_batch > 0:
+            if self.train_batch > 2:
                 spies = self.guess_spies()
                 for i in range(team_size):
-                    least_likely = spies.index(max(spies))
+                    most = min(spies)
+                    least_likely = spies.index(most)
                     if least_likely != self.player_number:
                         team.append(least_likely)
-                    spies[least_likely] = [0]
+                    spies[least_likely] = 0
+        elif self.train_batch > 2:
+            spies = self.guess_spies()
+            for i in range(team_size):
+                most = max(spies)
+                least_likely = spies.index(most)
+                if least_likely != self.player_number:
+                    team.append(least_likely)
+                spies[least_likely] = 0
         else:
-            team = self.spy_agent.propose(team_size)
+            self.spy_agent.propose(team_size)
 
         return team
 
@@ -83,9 +95,8 @@ class BasicLearnAgent(Agent):
             return True
         if self.is_spy():
             return self.spy_agent.vote(mission, proposer)
-        elif self.train_batch > 0:
+        elif self.train_batch > 2:
             spies = self.guess_spies()
-            spies = [value[1] - value[0] for value in spies]
             most_likely = spies.index(max(spies))
             for agent in mission:
                 if agent == most_likely and agent != self.player_number:
@@ -93,14 +104,10 @@ class BasicLearnAgent(Agent):
         return True
 
     def guess_spies(self):
-        spies = []
-        for key, value in self.stats.items():
-            inputs = [value[0], value[1]]
-            output = self.network.predict(inputs)
-            # print(str(inputs) + '->' + str(outputs))
-            spies.append(output)
-
-        return spies
+        if self.train_batch > 2:
+            return self.network.predict(self.stats)
+        else:
+            return None
 
     def vote_outcome(self, mission, proposer, votes):
         '''
@@ -111,10 +118,15 @@ class BasicLearnAgent(Agent):
         No return value is required or expected.
         '''
         # nothing to do here
-        vote_ratio = float(sum(votes) / self.n_players)
-        if (vote_ratio < float(1/2)):
-            self.stats[proposer][1] += 1
-        pass
+        vote_ratio = float(len(votes) / self.n_players)
+        if (vote_ratio <= 0.5):
+            for agent in range(self.n_players):
+                reward = 0
+                if agent in mission:
+                    reward = 2
+                    if agent is proposer:
+                        reward = 5
+                self.stats[agent] += reward
 
     def betray(self, mission, proposer):
         '''
@@ -124,7 +136,9 @@ class BasicLearnAgent(Agent):
         The method should return True if this agent chooses to betray the mission, and False otherwise.
         By default, spies will betray 30% of the time.
         '''
-        
+
+        if self.is_spy():
+            return self.spy_agent.betray(mission, proposer)
 
     def mission_outcome(self, mission, proposer, betrayals, mission_success):
         '''
@@ -136,8 +150,17 @@ class BasicLearnAgent(Agent):
         It iss not expected or required for this function to return anything.
         '''
         if not mission_success:
-            for agent in mission:
-                self.stats[agent][0] = self.stats[agent][0] + 1
+            for agent in range(self.n_players):
+                reward = 0
+                if agent in mission:
+                    reward = 5
+                    if agent is proposer:
+                        reward = 10
+                self.stats[agent] += reward
+
+        self.rnd_stats = [1] * self.n_players
+        self.n_try = 1
+        self.n_round += 1
 
         # print(str(self.totals) + '//' + str(self.stats))
         pass
@@ -149,6 +172,7 @@ class BasicLearnAgent(Agent):
         missions_failed, the numbe of missions (0-3) that have failed.
         '''
         # nothing to do here
+
         pass
 
     def game_outcome(self, spies_win, spies):
@@ -157,80 +181,24 @@ class BasicLearnAgent(Agent):
         spies_win, True iff the spies caused 3+ missions to fail
         spies, a list of the player indexes for the spies.
         '''
-        # nothing to do here
-        # print(str(self.stats) + '// ' + str(self.totals))
-        # goal = [0] * self.number_of_players
-        # inputs = [0] * (self.number_of_players * 2)
-        # for key, value in self.stats.items():
-        #     if self.totals[0] != 0:
-        #         inputs[key * 2] = value[0] / self.totals[0]
-        #     if self.totals[1] != 0:
-        #         inputs[key * 2 + 1] = value[1] / self.totals[1]
-        #     if key in spies:
-        #         goal[key] = 1
-        # self.gen.add(inputs, goal)
-        for key, value in self.stats.items():
-            if key in spies:
-                goal = [0, 1]
-            else:
-                goal = [1, 0]
-            inputs = [value[0], value[1]]
-            if sum(inputs) > 0:
-                # print(str(inputs) + "->" + str(goal))
-                self.network.gen.add(inputs, goal)
+        goal = [1 if i in spies else 0 for i in range(self.n_players)]
+        inputs = self.stats
+        self.game_count += 1
 
-        if self.can_train():
+        self.network.gen.add(inputs, goal)
+        if self.can_train() and self.game_count % 400 == 0:
+            self.game_count += 1
+            print('learning time!', flush=True)
             self.train()
-            self.network.gen.clear()
             self.train_batch += 1
+            self.trained = True
 
     def can_train(self):
-        if self.network.gen.get_data_length() > 20 * self.n_players and self.network.l_rate > 0.1:
-            # print('learning time!')
+        if self.network.gen.get_data_length() > 400 * self.n_players:
             return True
         else:
             return False
 
     def train(self):
-        self.network.generator_train(0.5, 100, batch_size=20, anneal=True, anneal_rate=0.99, debug=False)
-
-
-class GoodSpy:
-    def __init__(self, confusion):
-        self.plays = 0
-        self.wins = 0
-        self.confusion = confusion
-        self.failed_missions = 0
-
-    def new_game(self, n_players, player_number, spy_list):
-        self.n_player = n_players
-        self.spy_list = spy_list
-        self.player_number = player_number
-
-    def propose(self, team_size):
-        team = []
-        team.append(self.player_number)
-
-        while len(team) < team_size:
-            agent = randrange(team_size)
-            if agent not in team:
-                team.append(agent)
-        return team
-
-    def vote(self, mission, proposer):
-        for player in mission:
-            if player in self.spy_list:
-                # approve missions with any spy in them
-                return True
-        # deny if no spies in mission
-        return False
-
-    def betray(self, mission):
-        spy_count = 0
-        for agent in mission:
-            if agent in self.spy_list:
-                spy_count += 1
-        return random() < (1 / spy_count)
-
-    def inform_failed(self, failed):
-        self.failed_missions = failed
+        self.network.generator_train(5, 100, debug=True)
+        self.network.gen.clear()

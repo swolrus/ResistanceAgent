@@ -28,9 +28,13 @@ class BeliefStates():
         self.n = len(c_spy)
         self.p_states = [tuple(1 if i in c else 0 for i in roles) for c in c_spy]
 
-    def bayesian(self, indexes, zero):
+    def bayesian(self, indexes, zero, n_spies=None):
         for b in self.beliefs:
             b.bayesian(indexes, zero)
+
+    def bayesian_suspicion(self, dist):
+        for b in self.beliefs:
+            b.bayesian_suspicion(dist)
 
 
 class Belief():

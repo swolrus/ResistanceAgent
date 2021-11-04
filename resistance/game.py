@@ -1,6 +1,4 @@
 from agent import Agent
-from s22690264.bots.random import RandomAgent
-from s22690264.bots.basic import BasicAgent
 import random
 
 

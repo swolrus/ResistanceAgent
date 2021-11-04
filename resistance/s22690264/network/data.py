@@ -2,92 +2,111 @@ from random import randrange, seed
 from game import Game, Round, Mission
 from datetime import datetime
 from agent import Agent
-from s22690264.belief_states import Belief
-from .bayesian_train import BayesianTrainAgent
 from s22690264.network.model import Model
+import s22690264.common.util as util
+from s22690264.network.bayesian_train import BayesianTrainAgent
+from s22690264.bots.bayesian import BayesianAgent
+from s22690264.belief_states import Belief
+from s22690264.network.generator import Generator
 
 
-class Simulate:
-    def __init__(self):
-        self.agents = self.new_agents()
+class Reward:
+    def __init__(self, n_players, name):
+        self.name = name
+        self.n_players = n_players
+        self.agents = []
+        for i in range(self.n_players):
+            self.agents.append(BayesianTrainAgent('i'))
         self.n_players = len(self.agents)
         self.b = Belief()
-        self.nn = None
         self.b.calc_states(self.n_players, 2)
-        self.nn = [Model(datetime.now(), (self.n_players, 12, 12, self.n_players))] * 5
+        self.wins = [[[0, 0] for i in range(len(self.b.p_states))]] * 5
+        self.nn = [Model(datetime.now(), (len(self.b.p_states) + self.n_players, (len(self.b.p_states)*2)**2, len(self.b.p_states) * 2))] * 5
 
-    def save(self, name):
+    def save(self):
         for i in range(len(self.nn)):
-            self.nn[i].save_model(str(i), name)
+            for j in range(len(self.nn[i].nn)):
+                util.save_obj(self.nn[i].nn[j].neurons, self.name + str(i) + str(j))
 
-    def load(self, name):
+    def load(self):
         for i in range(len(self.nn)):
-            self.nn[i].load_model(str(i), name)
+            for j in range(len(self.nn[i].nn)):
+                self.nn[i].nn[j].neurons = util.load_obj(self.name + str(i) + str(j))
 
-    def simulate(self, n_epoch, n_games_per_epoch, test=False):
-        for epoch in range(n_epoch):
-            seed(datetime.now())
-            print('EPOCH ' + str(epoch))
+    def simulate(self, n, stop_round, gen=None, test=False):
+        print('TRAINING FOR ROUND ' + str(stop_round) + ' ' + str(n) + 'TIMES!')
+        for _ in range(n):
+            for role in [0, 1]:
+                agent_beliefs = []
+                for r in range(5):
+                    seed(datetime.now())
+                    self.saved = False
+                    agents_ = self.agents.copy()
+                    agents_ = util.shuffle_agents(agents_)
+                    game = Game(agents_)
+                    leader_id = randrange(self.n_players)
+                    i = 0
+                    while i < 5:
+                        game.rounds.append(Round(leader_id, game.agents, game.spies, i))
+                        if not game.rounds[i].play():
+                            game.missions_lost += 1
+                        leader_id = (leader_id + len(game.rounds[i].missions)) % len(game.agents)
+                        if i == stop_round:
+                            a = game.agents[randrange(self.n_players)]
+                            if role == 1:
+                                while a.player_number not in game.spies:
+                                    a = game.agents[randrange(self.n_players)]
+                            else:
+                                while a.player_number in game.spies:
+                                    a = game.agents[randrange(self.n_players)]
+                            agent_beliefs = [role, a.player_number, a.beliefs.beliefs.values()]
+                        i += 1
 
-            for play in range(n_games_per_epoch):
-                self.saved = False
-                seed(datetime.now())
-                game = Game(self.agents)
-                output = [1 if a.player_number in game.spies else 0 for a in game.agents]
-                leader_id = 0
-                stop = randrange(5)
-                for i in range(0, stop):
-                    game.rounds.append(Round(leader_id, game.agents, game.spies, i))
-                    if not self.play_round(game.rounds[i], game, test, stop, output):
-                        game.missions_lost += 1
-                    leader_id = (leader_id + len(game.rounds[i].missions)) % len(game.agents)
+                    for a in self.agents:
+                        a.game_outcome(game.missions_lost > 2, len(game.spies))
 
+                state = tuple([1. if j in game.spies else 0. for j in range(self.n_players)])
                 a = game.agents[randrange(self.n_players)]
-                while a in game.spies:
-                    a = game.agents[randrange(self.n_players)]
-                inputs = []
-                for i in range(len(game.agents)):
-                    inputs.append(a.stats[game.agents[i].player_number])
-                if test is False:
-                    self.round_train(stop, inputs, output)
+                index = self.b.p_states.index(state)
+
+                inputs = [1. if i == agent_beliefs[1] else 0. for i in range(self.n_players)]
+                inputs.extend(agent_beliefs[2])
+                if agent_beliefs[0] == 0:
+                    outputs = []
+                    for i in range(len(self.b.p_states)):
+                        if i == index:
+                            outputs.append(0)
+                            outputs.append(1)
+                        else:
+                            outputs.append(1)
+                            outputs.append(0)
+                    if agent_beliefs[0] == 1:
+                        outputs = [0. if i == 1 else 0. for i in outputs]
+                if gen is None:
+                    self.nn[stop_round].gen.add(inputs, outputs)
                 else:
-                    s = 'Round{' + str(a.n_round) + '}'
-                    s += ' Try{' + str(a.n_try) + '}\n'
-                    s += 'Input //' + str(inputs) + '\n'
-                    s += 'Expected //' + str(output) + '\n'
-                    s += 'Got // ' + str(self.nn[stop].predict(inputs)) + '\n'
-                    print(s)
+                    gen.add(inputs, outputs)
 
-    def play_round(self, rnd, game, test, stop, output):
-        mission_size = Agent.mission_sizes[len(rnd.agents)][rnd.rnd]
-        fails_required = Agent.fails_required[len(rnd.agents)][rnd.rnd]
-        while len(rnd.missions) < randrange(1, 5):
-            team = rnd.agents[rnd.leader_id].propose_mission(
-                mission_size, fails_required)
-            mission = Mission(rnd.leader_id, team, rnd.agents,
-                              rnd.spies, rnd.rnd, len(rnd.missions) == 4)
-            rnd.missions.append(mission)
-            rnd.leader_id = (rnd.leader_id + 1) % len(rnd.agents)
-            if mission.is_approved():
-                return mission.is_successful()
-        return mission.is_successful()
+    def train_net(self, i, n):
+        # self.simulate(n, 0)
+        # self.nn[0].generator_train(0.02, 2, 4, 2, debug=True)
+        self.load()
+        gen = Generator()
+        self.simulate(50, 0, gen)
+        gen.split_data(50)
+        rows = next(gen)
+        for row in rows:
+            output = self.nn[0](row[0])
+            probs = []
+            true = []
+            for i in range(0, len(output) - 1, 2):
+                probs.append(output[i] - output[i + 1])
+                if row[1][i - 5] == 1:
+                    true.append(1)
+                else:
+                    true.append(0)
+            print(row[0])
+            print(probs)
+            print(true)
 
-    def train_nets(self):
-        for i in range(len(self.nn)):
-            print('Training network for round ' + str(i))
-            print(self.nn[i].gen)
-
-            self.nn[i].generator_train(0.1, 10, batch_size=2000, anneal=True, anneal_rate=0.99, debug=False)
-
-    def round_train(self, index, inputs, output):
-        self.nn[index].gen.add(inputs, output)
-
-    def new_agents(self):
-        agents = [
-            BayesianTrainAgent('r1'),
-            BayesianTrainAgent('r2'),
-            BayesianTrainAgent('r3'),
-            BayesianTrainAgent('r4'),
-            BayesianTrainAgent('r5'),
-        ]
-        return agents
+        self.save()

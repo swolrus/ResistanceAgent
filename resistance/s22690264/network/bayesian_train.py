@@ -30,17 +30,16 @@ class BayesianTrainAgent(Agent):
         '''
         self.n_players = number_of_players
         self.player_number = player_number
-
         self.spy_list = spy_list
-        self.spy_agent = GoodSpy(self.confusion)
-        self.spy_agent.new_game(self.spy_list)
+
+        self.random_agent = RandomAgent()
 
         self.beliefs = Belief()
         self.beliefs.calc_states(self.n_players, len(self.spy_list))
         self.beliefs.bayesian([self.player_number], 0)
 
         self.stats = [0] * self.n_players
-        self.reset()
+        self.rnd_stats = [1] * self.n_players
 
         self.n_round = 1
         self.n_try = 1
@@ -56,11 +55,7 @@ class BayesianTrainAgent(Agent):
         if agent is spy use GoodSpy subclass to build team, otherwise build model team off accumulative stats
         use bayesian function to test if team exists and is in the top half of probable distributions
         '''
-        if not self.is_spy():
-            team = []
-            team.append(self.player_number)
-
-        return self.spy_agent.propose(team_size, self.player_number, self.n_players)
+        return self.random_agent.propose(team_size, self.player_number, self.n_players)
 
     def vote(self, mission, proposer):
         '''
@@ -68,14 +63,7 @@ class BayesianTrainAgent(Agent):
         if spy use GoodSpy to vote (a variation of random)
         if not spy use similar bayesian strategy as in propose to deny high suspect missions
         '''
-        if self.player_number == proposer:
-            return True
-        if self.is_spy():
-            self.spy_agent.vote(mission)
-        else:
-            most_sus = [[i, self.stats[i]] for i in range(len(self.stats))]
-            most_sus = sorted(most_sus, key=operator.itemgetter(1), reverse=True)
-        return True
+        return self.random_agent.vote()
 
     def vote_outcome(self, mission, proposer, votes):
         '''
@@ -83,15 +71,16 @@ class BayesianTrainAgent(Agent):
           - on the mission
           - leader of the mission
         '''
-        vote_ratio = float(len(votes) / self.n_players)
-        if (vote_ratio <= 0.5):
-            for agent in range(self.n_players):
-                reward = 0
-                if agent in mission:
-                    reward = 2
-                    if agent is proposer:
-                        reward = 5
-                self.rnd_stats[agent] += reward
+        if not self.is_spy():
+            vote_ratio = float(len(votes) / self.n_players)
+            if (vote_ratio <= 0.5):
+                for agent in range(self.n_players):
+                    reward = 0
+                    if agent in mission:
+                        reward = 2
+                        if agent is proposer:
+                            reward = 5
+                    self.rnd_stats[agent] += reward
 
     def betray(self, mission, proposer):
         '''
@@ -101,11 +90,8 @@ class BayesianTrainAgent(Agent):
         The method should return True if this agent chooses to betray the mission, and False otherwise.
         By default, spies will betray 30% of the time.
         '''
-        spy_count = 0
-        for agent in mission:
-            if agent in self.spy_list:
-                spy_count += 1
-        return random() < (1 / spy_count)
+        if self.is_spy():
+            return self.random_agent.betray()
 
     def mission_outcome(self, mission, proposer, betrayals, mission_success):
         '''
@@ -113,24 +99,24 @@ class BayesianTrainAgent(Agent):
           - on the mission
           - leader of the mission
         '''
-        if not mission_success:
-            for agent in range(self.n_players):
-                reward = 0
-                if agent in mission:
-                    reward = 5
-                    if agent is proposer:
-                        reward = 10
-                self.rnd_stats[agent] += reward
-            self.beliefs.bayesian(mission, 1, betrayals)
+        if not self.is_spy():
+            if not mission_success:
+                for agent in range(self.n_players):
+                    reward = 0
+                    if agent in mission:
+                        reward = 5
+                        if agent is proposer:
+                            reward = 10
+                    self.rnd_stats[agent] += reward
+                self.beliefs.bayesian(mission, 1, betrayals)
 
-        self.beliefs.bayesian_suspicion(self.rnd_stats)
-        for i in range(self.n_players):
-            self.stats[i] += self.rnd_stats[i]
+            self.beliefs.bayesian_suspicion(self.rnd_stats)
+            for i in range(self.n_players):
+                self.stats[i] += self.rnd_stats[i]
 
-        self.reset()
-
-        self.n_try = 1
-        self.n_round += 1
+            self.rnd_stats = [1] * self.n_players
+            self.n_try = 1
+            self.n_round += 1
 
     def round_outcome(self, rounds_complete, missions_failed):
         '''
@@ -139,8 +125,6 @@ class BayesianTrainAgent(Agent):
         missions_failed, the numbe of missions (0-3) that have failed.
         '''
         # nothing to do here
-        if self.is_spy():
-            self.spy_agent.inform_failed(rounds_complete - missions_failed)
         pass
 
     def game_outcome(self, spies_win, spies):
@@ -149,28 +133,11 @@ class BayesianTrainAgent(Agent):
         spies_win, True iff the spies caused 3+ missions to fail
         spies, a list of the player indexes for the spies.
         '''
-
-    def check_accuracy(self, true_state):
-        most_sus = [[i, self.stats[i]] for i in range(len(self.stats))]
-        most_sus = sorted(most_sus, key=operator.itemgetter(1), reverse=True)
-        rank = 0
-        for key in most_sus.keys():
-            if self.beliefs.p_states[key] == true_state:
-                return rank
-            rank += 1
+        self.spies_win = spies_win
+        pass
 
 
-class GoodSpy:
-    def __init__(self, confusion):
-        self.plays = 0
-        self.wins = 0
-        self.confusion = confusion
-        self.failed_missions = 0
-
-    def new_game(self, spy_list):
-        self.spy_list = spy_list
-        return self
-
+class RandomAgent:
     def propose(self, team_size, player_number, n_players):
         team = []
         team.append(player_number)
@@ -181,22 +148,8 @@ class GoodSpy:
                 team.append(agent)
         return team
 
-    def vote(self, mission):
-        # confusion
-        if random() < 1 - self.confusion:
-            return False
-        # if is a spy
-        for player in mission:
-            if player in self.spy_list:
-                # approve missions with any spy in them
-                return True
+    def vote(self):
+        return random() < 0.5
 
-    def betray(self, mission):
-        spy_count = 0
-        for agent in mission:
-            if agent in self.spy_list:
-                spy_count += 1
-        return random() < (1 / spy_count)
-
-    def inform_failed(self, failed):
-        self.failed_missions = failed
+    def betray(self):
+        return random() < 0.3

@@ -1,64 +1,68 @@
-from random import seed
-from datetime import datetime
-from game import Game
-from s22690264.network.model import Model
-from s22690264.bots.random import RandomAgent
-from s22690264.bots.basic import BasicAgent
-from s22690264.bots.basic_learn import BasicLearnAgent
-from s22690264.bots.bayesian import BayesianAgent
-from s22690264.network.data import Simulate
+from s22690264.statistics import Battle
 from s22690264.bayesian_accuracy_test import Test
+from s22690264.network.model import Model
 
-agents = [
-    BayesianAgent('Bayesian2'),
-    BasicAgent('Based1'),
-    BasicAgent('Based2'),
-    BasicAgent('Based3'),
-    BasicAgent('Based4'),
-]
+def main():
+    bayesian = False
+    partitioned = True
+    graph = False
+    graphed = None
+    persist = True
+    agent_layout = [0, 0, 0, 0]
+    while True:
+        print('TEST OPTIONS:')
+        print('1. Bayesian Graph')
+        print('2. Tournament of agents of your choice, batches accumulate')
+        print('  3. Above but graphed')
+        print('4. Tournament of agents of your choice, batches are partitioned')
+        print('  5. Above but graphed')
+        selection = int(input('Please input the integer corresponding: '))
+        if selection == 1:
+            bayesian = True
+            break
+        if selection == 2 or 3:
+            partitioned = False
+            while True:
+                graphed = int(input('What to graph (0=spywins, 1=reswins, 2=totalwins): '))
+                if graphed in range(3):
+                    graphed = graphed
+                    break
+        if selection == 3 or 5:
+            graph = True
+        if selection in range(1, 6):
+            break
+    if selection != 1:
+        while True:
+            persist = input('Do agents persist between batches? (1=yes, 0=no): ')
+            if persist == '0':
+                persist = False
+                break
+            elif persist == '1':
+                break
+    while True:
+        print('Enter agent counts.')
+        try:
+            agent_layout[0] = int(input('Number Random: '))
+            agent_layout[1] = int(input('Number Basic: '))
+            agent_layout[2] = int(input('Number Bayesian: '))
+            agent_layout[3] = int(input('Number Learn: '))
+            n_batches = int(input('Enter number of batches: '))
+            n_games = int(input('Enter n games per batch: '))
+        except ValueError:
+            print('Please enter an integer')
+        else:
+            if 4 < sum(agent_layout) < 11:
+                break
+            else:
+                print('Total agent must be between 5 and 10 agents.')
+    if bayesian is True:
+        test = Test(agent_layout)
+        test.simulate(n_batches, n_games)
+        test.plot()
+    else:
+        tournament = Battle(agent_layout, graph, graphed)
+        tournament.run(n_batches, n_games, partitioned, 10)
 
 
-def run_sim():
-    tournament = Simulate(agents)
-    tournament.run(2, 10)
-
-
-def run_game():
-    seed(datetime.now())
-    game = Game(agents_two)
-    game.play()
-    print(game.spies)
-
-
-def test():
-    test = Test(agents)
-    test.simulate(100, 100, 5)
-    test.save('test2', 'accuracy')
-
-    test2 = Test()
-    test2.load('test2', 'accuracy')
-    test2.plot()
-
-
-def test2():
-    nn = Model(5)
-    nn.add_hidden_layer(2, 'ReLu')
-    nn.close_network(2, 'sigmoid')
-    nn.gen.add([0, 1, 1, 0, 1], [1, 0])
-    nn.gen.add([1, 1, 0, 1, 1], [1, 0])
-    nn.gen.add([1, 0, 1, 0, 0], [0, 1])
-    nn.gen.add([0, 0, 0, 1, 1], [0, 1])
-    nn.gen.add([0, 1, 1, 1, 0], [1, 0])
-    nn.gen.add([1, 1, 0, 0, 1], [1, 0])
-    nn.generator_train(1q, 1)
-    results = []
-    results.append(nn([1, 0, 1, 0, 0]))
-    print(nn)
-    results.append(nn([0, 1, 0, 0, 1]))
-    print(nn)
-    results.append(nn([1, 0, 1, 0, 0]))
-    print(nn)
-    print(results)
-
-
-test()
+if __name__ == '__main__':
+    main()

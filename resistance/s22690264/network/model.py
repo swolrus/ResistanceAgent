@@ -1,7 +1,9 @@
 from random import seed
-from math import exp, sqrt
-from s22690264.network.layer import Layer, InputLayer
+from math import sqrt, pow
+from datetime import datetime
+from s22690264.network.layer import Layer
 from s22690264.network.generator import Generator
+from decimal import Decimal
 
 
 class Model:
@@ -16,34 +18,24 @@ class Model:
 
     nn contains the objects neural net dictionary
     '''
-
-    def __init__(self, n_in):
-        self.b1 = 0.9
-        self.b2 = 0.999
-        self.epsilon = float(1. * exp(-9))
-        self.l_rate = 0.1
-        self.t = 1
-
+    def __init__(self, layers, activation_f='Sigmoid'):
+        self.layer_counts = layers
         self.gen = Generator()
-        self.debug = False
+        seed(datetime.now())
+        self.first_run = True
+        self.activation_f = activation_f
 
-        self.n_in = n_in
-        self.n_out = None
-        self.inputs = [0] * self.n_in
-        self.outputs = None
+        self.nn = []
+        self.in_l = Layer(None, self.layer_counts[0], 'INPUT', 0, None)
+        self.nn.append(self.in_l)
 
-        self.nn = list()
-        self.input_layer = InputLayer(n_in)
-        self.nn.append(self.input_layer)
-
-    def add_hidden_layer(self, n_out, activation_f='ReLU'):
-        layer = Layer(self.nn[-1].n_out, n_out, 'HIDDEN', activation_f)
-        self.nn.append(layer)
-
-    def close_network(self, n_out, activation_f='sigmoid'):
-        self.n_out = n_out
-        layer = Layer(self.nn[-1].n_out, self.n_out, 'OUTPUT', activation_f)
-        self.nn.append(layer)
+        for i in range(1, len(self.layer_counts)):
+            if i == len(self.layer_counts) - 1:
+                self.out_l = Layer(self.nn[-1], self.layer_counts[i], 'OUTPUT', i, self.activation_f)
+                self.nn.append(self.out_l)
+            else:
+                layer = Layer(self.nn[-1], self.layer_counts[i], 'HIDDEN', i, 'ReLU')
+                self.nn.append(layer)
 
     def __str__(self):
         s = ''
@@ -57,111 +49,116 @@ class Model:
         row is the inputes we wish to propegate
         returns the output of the output layer
         '''
-        if self.n_out is None:
-            raise EnvironmentError('Network is not closed! Usage: self.close_network(n_out, activation_f)')
-        self.inputs = row
-        self.outputs = list(row)
+        inputs = row
+        if len(inputs) != self.in_l.n_in:
+            raise ValueError('This network requires input of length {}, your data is of length {}'
+                             .format(self.in_l.n_out, len(row)))
         for layer in self.nn:
-            self.outputs = layer(self.outputs)
-        return self.outputs
+            if layer.type != 0:
+                # then each layer will take and forward propagate them
+                row = layer(inputs)
+            else:
+                # first we set input layer outputs to be the row
+                for i in range(len(layer.neurons)):
+                    layer.neurons[i]['output'] = row[i]
+        return row
+
+    def get_outputs(self):
+        '''
+        returns the current outputs of the ouput layer
+        '''
+        return [n['output'] for n in self.l_output.neurons]
 
     def backward_propagate_error(self, expected):
-        '''
-        Backpropagate error and store in neurons
-        '''
-        i = len(self.nn) - 1
-        while i < 0:
-            errors = []
-            prior_layer = self.nn[i]
-            if i == len(self.nn) - 1:
-                # if we are at output simple extract error
-                for j in range(len(prior_layer.neurons)):
-                    prior_layer.neurons[j]['outputs'][0] = self.nn[i].neurons[j]['outputs'][1]
-                    prior_layer.neurons[j]['outputs'][1] = expected[j]
-
-            layer = self.nn[i - 1]
+        for i in reversed(range(len(self.nn))):
+            layer = self.nn[i]
+            errors = list()
+            if i != len(self.nn) - 1:
+                # if we are not at the output yet
+                for j in range(len(layer.neurons)):
+                    error = Decimal('0.0')
+                    for neuron in self.nn[i + 1].neurons:
+                        error += Decimal(neuron['weights'][j]) * neuron['dw']
+                    errors.append(error)
+            else:
+                for j in range(len(layer.neurons)):
+                    neuron = layer.neurons[j]
+                    errors.append(neuron['output'] - expected[j])
             for j in range(len(layer.neurons)):
-                layer.neurons[j]['outputs'][0] = layer.neurons[j]['outputs'][1]
-                error = 0.0
-                for neuron in prior_layer.neurons:
-                    error += neuron['weights'][j] * (neuron['outputs'][0] - neuron['outputs'][1])
-                errors.append(error)
+                neuron = layer.neurons[j]
+                neuron['dw'] = errors[j] * layer.activation_dx(neuron['output'])
+                neuron['db'] = errors[j]
 
-            if not False:
-                n = prior_layer.neurons[j]
+    # Update network weights with error
+    def update_weights(self, t, l_rate, beta1, beta2, epsilon):
+        for i in range(0, len(self.nn)):
+            for neuron in self.nn[i].neurons:
+                if t == 1:
+                    neuron['v_dw'], neuron['v_db'] = 0.0, 0.0
+                    neuron['s_dw'], neuron['s_db'] = 0.0, 0.0
 
-                t = 1
-                while t < 1000:
-                    g_0 = n['delta'][0]
-                    g_1 = n['delta'][1]
+                # ADAMS OPTIMISER
+                # Momentum calculations
+                neuron['v_dw'] = beta1 * neuron['v_dw'] + (1.0 - beta1) * neuron['dw']
+                neuron['v_db'] = beta1 * neuron['v_db'] + (1.0 - beta1) * neuron['db']
 
-                    # update weight
-                    n['dm'][0] = self.b1 * n['dm'][0] + (1 - self.b1) * g_0
-                    # update bias
-                    n['dm'][1] = self.b1 * n['dm'][1] + (1 - self.b1) * g_1
+                # RMS Calcs
+                neuron['s_dw'] = beta2 * neuron['s_dw'] + (1.0 - beta2) * (neuron['dw']**2)
+                neuron['s_db'] = beta2 * neuron['s_db'] + (1.0 - beta2) * (neuron['db'])
 
-                    # rms beta 2
-                    # update weight
-                    n['dv'][0] = self.b2 * n['dv'][0] + (1 - self.b2) * (g_0**2)
-                    # update bias
-                    n['dv'][1] = self.b2 * n['dv'][1] + (1 - self.b2) * (g_1**2)
+                # Bias Correction
+                v_dw_corr = neuron['v_dw'] / (1.0 - pow(beta1, t))
+                v_db_corr = neuron['v_db'] / (1.0 - pow(beta1, t))
+                s_dw_corr = neuron['s_dw'] / (1.0 - pow(beta2, t))
+                s_db_corr = neuron['s_db'] / (1.0 - pow(beta1, t))
 
-                    # bias correction
-                    m_dw_corr = n['dm'][0] / (1 - self.b1**t)
-                    m_db_corr = n['dm'][1] / (1 - self.b1**t)
-                    v_dw_corr = n['dv'][0] / (1 - self.b2**t)
-                    v_db_corr = n['dv'][1] / (1 - self.b2**t)
+                neuron['dw'] = l_rate * v_dw_corr / (sqrt(s_dw_corr) + epsilon)
+                neuron['db'] = l_rate * v_db_corr / (sqrt(s_db_corr) + epsilon)
 
-                    n['delta'][0] = n['delta'][0] - self.l_rate / float(sqrt(v_dw_corr) + self.epsilon) * m_dw_corr
-                    n['delta'][1] = n['delta'][1] - self.l_rate / float(sqrt(v_db_corr) + self.epsilon) * m_db_corr
-                    # update weights and biases
-                    for j in range(len(n['weights']) - 1):
-                        n['weights'][j] -= n['delta'][0]
-                    n['weights'][-1] -= n['delta'][1]
-                    t += 1
-            i -= 1
+                # Update Weights
+                for j in range(len(self.nn[i - 1].neurons) - 1):
+                    neuron['weights'][j] -= neuron['dw']
+                neuron['weights'][-1] -= neuron['db']
 
-    def set_generator(self, generator):
-        # sets the generator to a new generator object provided as the only arg
-        self.gen = generator
-
-    def generator_train(self, n_epoch, n_folds, l_rate=0.001, debug=False):
-        '''
-        Trains The network using the generator assigned to the network (stored in self.gen)
-        l_rate is the learning rate
-        n_epoch is how many times we will back propagate the error
-        batch_size is how many rows to pull from the generator per epoch
-        anneal turns on annealing for the network
-        anneal rate affects the learning rate every epoch if anneal is True
-        debug prints error information over an epoch if True
-        clear_generator will clear the generator of it's rows at the end of training if True
-        '''
-
-        self.gen.split_data(n_folds)
-        epoch = 0
-        t = 0
-        while epoch < n_epoch:
-            epoch += 1
-
-            rows = next(self.gen)
-
-            if rows == None:
+    def generator_train(self, n_epoch, batch_size, debug=False):
+        l_rate = 0.001
+        beta1 = 0.9
+        beta2 = 0.999
+        epsilon = 0.0000001
+        t = 0.0
+        for epoch in range(n_epoch):
+            t += 1.0
+            self.gen.split_data(batch_size)
+            error = 0.0
+            minibatch = next(self.gen)
+            if minibatch is None:
                 break
-            for row in rows:
-                t += 1
-                sum_error = 0
+
+            for row in minibatch:
                 x_train = row[0]
                 y_train = row[1]
-                # print(str(x_train) + '->' + str(y_train))
                 outputs = self(x_train)
-                sum_error += sum([(y_train[i] - outputs[i]) **
-                                  2 for i in range(len(y_train))])
-                self.backward_propagate_error(outputs)
-                if debug is True and epoch % 10 == 0:
-                    print('epoch->%d, lrate is %.3f and error %.3f' %
-                          (epoch, l_rate, sum_error))
 
+            error = sum([(outputs[i] - y_train[i])**2 - 2*(outputs[i] - y_train[i]) + 1 for i in range(self.out_l.n_out)])
+
+            self.backward_propagate_error(y_train)
+            self.update_weights(t, l_rate, beta1, beta2, epsilon)
+
+            if debug is True and epoch % 10 == 0:
+                print('epoch->{}, lrate is {} and error {}'.format(epoch, l_rate, error))
+            if error < 0.01:
+                return
+    def loss_function(m):
+        return m**2 - 2 * m + 1
+
+    # take derivative
+    def grad_function(m):
+        return 2 * m - 2
+
+    def check_convergence(w0, w1):
+        return (w0 == w1)
+
+    # Use the network to make a prediction
     def predict(self, row):
         # use the network to predict outputs for row, same as calling the object
         return self(row)
-

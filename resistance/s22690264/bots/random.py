@@ -15,9 +15,6 @@ class RandomAgent(Agent):
     def reset(self):
         pass
 
-    def __str__(self):
-        return super().__str__()
-
     def new_game(self, number_of_players, player_number, spy_list):
         '''
         initialises the game, informing the agent of the

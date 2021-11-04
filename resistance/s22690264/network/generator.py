@@ -1,4 +1,5 @@
-from random import randrange
+from random import randrange, seed
+from datetime import datetime
 
 
 class Generator:
@@ -15,22 +16,25 @@ class Generator:
         return s
 
     def add(self, x, y):
-        row = (x, y)
+        row = [x, y]
         self.data.append(row)
 
-    def split_data(self, n_folds):
+    def split_data(self, batch_size):
+        seed(datetime.now())
+        self.batch_size = batch_size
         self.index = 0
         self.split = list()
         data_ = self.data.copy()
-        self.fold_size = int(len(data_) / n_folds)
-        for i in range(n_folds):
+        self.n_folds = int(len(self.data) / self.batch_size)
+        for i in range(self.n_folds):
             fold = list()
-            while len(fold) < self.fold_size:
-                i = randrange(len(data_))
-                fold.append(data_.pop(i))
+            while len(fold) < self.batch_size and len(data_) > 0:
+                j = randrange(len(data_))
+                fold.append(data_.pop(j))
             self.split.append(fold)
-            self.n_folds += 1
-        return self.split
+
+    def get_data_length(self):
+        return len(self.data)
 
     def clear(self):
         self.split = list()
@@ -38,4 +42,5 @@ class Generator:
         self.n_folds = 0
 
     def __next__(self):
-        return self.split[self.index]
+        self.index += 1
+        return self.split[self.index % self.n_folds]

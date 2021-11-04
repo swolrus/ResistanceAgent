@@ -1,4 +1,5 @@
 from game import Game
 from agent import Agent
-from random_agent import RandomAgent
-from s22690264.basic_agent import BasicAgent
+from statistics import Statistcs
+from bayesian_accuracy_test import Test
+from s22690264.bots.basic_learn import LearnAgent
