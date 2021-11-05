@@ -37,6 +37,7 @@ class Generator:
         return len(self.data)
 
     def clear(self):
+        self.data = []
         self.split = list()
         self.index = 0
         self.n_folds = 0

@@ -60,7 +60,7 @@ class Battle:
             self.batch.top = 10
         if self.graph is not True:
             print('\n{:~^41}'.format('GLOBAL') + str(self.globals))
-        if self.plot_key is not None:
+        if self.graph is not True:
             self.plot(STAT_KEYS[self.plot_key][1])
 
     def get_percents(self, key):

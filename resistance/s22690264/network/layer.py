@@ -1,11 +1,12 @@
-from random import random, gauss
+from random import random, gauss, seed
 from math import exp, sqrt
+from datetime import datetime
 from s22690264.common import util
-from decimal import Decimal
 
 
 class Layer:
     def __init__(self, previous, n_out, name, index, activation_f):
+        seed(datetime.now())
         if previous is not None:
             self.previous = previous
             self.n_in = self.previous.n_out
@@ -15,11 +16,12 @@ class Layer:
         self.n_out = n_out
         self.type = util.LAYER_ID[name]
         self.name = name + '-' + str(index)
+        self.index = index
         self.activation_f = activation_f
 
         # Add one to each weight set meaning bias is the last weight
         # Randomise the weight set
-        self.neurons = [{'weights': [0.0 if i == self.n_in else (random() * 2 * sqrt(2 / self.n_in)) for i in range(self.n_in + 1)], 'dw': 0.0, 'db': 0.0, 'v_dw': 0.0, 'v_db': 0.0, 's_dw': 0.0, 's_db': 0.0}
+        self.neurons = [{'weights': [0.0 if i == self.n_in else gauss(0, (sqrt(2 / (self.index + 1)))) for i in range(self.n_in + 1)], 'delta': 0}
                         for i in range(self.n_out)]
 
     def __str__(self):
@@ -67,7 +69,7 @@ class Layer:
         inputs = row
         # take the bias
         a = weights[-1]
-        for i in range(len(weights) - 1):
+        for i in range(len(inputs)):
             # for each input calculate activation
             a += weights[i] * inputs[i]
         return a
